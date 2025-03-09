@@ -19,16 +19,16 @@ import org.springframework.stereotype.Service;
 @Service
 public class OpenAIService {
 
-  @Value("${client-azureopenai-key}")
+  @Value("${client.azureopenai.key}")
   private String clientKey;
 
-  @Value("${client-azureopenai-endpoint}")
+  @Value("${client.azureopenai.endpoint}")
   private String clientEndpoint;
 
   @Value("${model}")
   private String model;
 
-  public BookResponse processPrompt(String prompt) {
+  public BookResponse processBookPrompt(String prompt) {
     OpenAIAsyncClient client = createOpenAIAsyncClient();
 
     ChatCompletionService chatCompletionService = createChatCompletionService(client);

@@ -21,6 +21,6 @@ public class BookController {
   public ResponseEntity<BookResponse> searchBook(@RequestBody BookRequest request) {
     String input = request.getInput();
     System.out.println("Searching for: " + input);
-    return ResponseEntity.ok(openAIService.processPrompt(input));
+    return ResponseEntity.ok(openAIService.processBookPrompt(input));
   }
 }
