@@ -5,7 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.PropertySource;
 
 @SpringBootApplication
-@PropertySource("classpath:/config/application.yml")
+@PropertySource("classpath:/config/application.properties")
 public class GenAiTrainingApplication {
 
 	public static void main(String[] args) {
