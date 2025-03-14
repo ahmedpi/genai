@@ -4,7 +4,6 @@ import com.azure.ai.openai.OpenAIAsyncClient;
 import com.azure.ai.openai.OpenAIClientBuilder;
 import com.azure.core.credential.AzureKeyCredential;
 import com.azure.core.credential.KeyCredential;
-import com.epam.training.gen.ai.dto.BookResponse;
 import com.microsoft.semantickernel.Kernel;
 import com.microsoft.semantickernel.aiservices.openai.chatcompletion.OpenAIChatCompletion;
 import com.microsoft.semantickernel.orchestration.InvocationContext;
@@ -28,7 +27,7 @@ public class OpenAIService {
   @Value("${model}")
   private String model;
 
-  public BookResponse processBookPrompt(String prompt) {
+  public String getChatCompletions(String prompt) {
     OpenAIAsyncClient client = createOpenAIAsyncClient();
 
     ChatCompletionService chatCompletionService = createChatCompletionService(client);
@@ -79,9 +78,9 @@ public class OpenAIService {
         optionalInvocationContext).block();
   }
 
-  private BookResponse processResponse(List<ChatMessageContent<?>> response, ChatHistory history) {
+  private String processResponse(List<ChatMessageContent<?>> response, ChatHistory history) {
     if (response == null || response.isEmpty()) {
-      return new BookResponse("No response received from the assistant.");
+      return "No response received from the assistant.";
     }
 
     for (ChatMessageContent<?> result : response) {
@@ -90,8 +89,8 @@ public class OpenAIService {
         history.addMessage(result); // Add assistant's message to chat history
       }
     }
-
+    return response.get(0).getContent();
     // Return the first assistant message as the response
-    return new BookResponse(response.get(0).getContent());
+//    return new BookResponse(response.get(0).getContent());
   }
 }
