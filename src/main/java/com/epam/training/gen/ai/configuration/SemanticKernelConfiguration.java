@@ -52,21 +52,6 @@ public class SemanticKernelConfiguration {
                         .build())
                 .build();
     }
-
-    /**
-     * Creates a map of {@link PromptExecutionSettings} for different models.
-     *
-     * @param deploymentOrModelName the Azure OpenAI deployment or model name
-     * @return a map of model names to {@link PromptExecutionSettings}
-     */
-    @Bean
-    public Map<String, PromptExecutionSettings> promptExecutionsSettingsMap(
-            @Value("${client.azureopenai.deployment-name}")
-            String deploymentOrModelName) {
-        return Map.of(deploymentOrModelName, PromptExecutionSettings.builder()
-                .withTemperature(1.0)
-                .build());
-    }
 }
 
 

@@ -4,7 +4,9 @@ import com.epam.training.gen.ai.dto.ChatHistoryDto;
 import com.epam.training.gen.ai.model.Message;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.semantickernel.Kernel;
-import com.microsoft.semantickernel.services.chatcompletion.AuthorRole;
+import com.microsoft.semantickernel.orchestration.InvocationContext;
+import com.microsoft.semantickernel.semanticfunctions.KernelFunction;
+import com.microsoft.semantickernel.semanticfunctions.KernelFunctionArguments;
 import com.microsoft.semantickernel.services.chatcompletion.ChatCompletionService;
 import com.microsoft.semantickernel.services.chatcompletion.ChatHistory;
 import com.microsoft.semantickernel.services.chatcompletion.ChatMessageContent;
@@ -19,12 +21,13 @@ import java.util.List;
 public class ChatService {
 
     private final ChatCompletionService chatCompletionService;
+    private final InvocationContext invocationContext;
+
     ChatHistory chatHistory = new ChatHistory();
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
-    public ChatService(ChatCompletionService chatCompletionService) {
+    public ChatService(ChatCompletionService chatCompletionService, InvocationContext invocationContext) {
         this.chatCompletionService = chatCompletionService;
+        this.invocationContext = invocationContext;
         this.chatHistory.addSystemMessage("""
                 You are a helpful assistant.
                 Your task is to assist with order requests for our menu.
@@ -34,58 +37,44 @@ public class ChatService {
 
     public String getChatCompletions(String prompt) {
         Kernel kernel = createKernel(chatCompletionService);
-        chatHistory.addUserMessage(prompt);
 
-        List<ChatMessageContent<?>> results = chatCompletionService.getChatMessageContentsAsync(
+        chatHistory.addUserMessage(prompt);
+        List<ChatMessageContent<?>> result = chatCompletionService.getChatMessageContentsAsync(
                 chatHistory,
                 kernel,
-                null
+                invocationContext
         ).block();
 
-        logMessagesHistory();
+        if (result == null || result.isEmpty()) {
+            return "No response received from the assistant.";
+        }
 
-        return processResponse(results);
+        chatHistory.addAssistantMessage(result.get(0).getContent());
+
+        printChatHistory();
+
+        return result.get(0).getContent();
     }
 
-    public void logMessagesHistory() {
-        try {
-            ChatHistoryDto chatHistoryDto = new ChatHistoryDto();
+    public void printChatHistory() {
+        System.out.println("Chat History:");
+        chatHistory.forEach(chatMessageContent -> {
+            String role = chatMessageContent.getAuthorRole().toString().toLowerCase();
+            String content = chatMessageContent.getContent();
+            System.out.printf("%s: %s%n", capitalize(role), content);
+        });
+    }
 
-            List<Message> messages = new ArrayList<>();
-            chatHistory.forEach(chatMessageContent -> {
-                Message message = new Message(
-                        chatMessageContent.getAuthorRole().toString().toLowerCase(),
-                        chatMessageContent.getContent()
-                );
-                messages.add(message);
-            });
-
-            chatHistoryDto.setMessages(messages);
-
-            String json = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(chatHistoryDto);
-            log.info("Chat History: {}", json);
-        } catch (Exception e) {
-            log.error("Failed to serialize chat history to JSON", e);
+    private String capitalize(String str) {
+        if (str == null || str.isEmpty()) {
+            return str;
         }
+        return Character.toUpperCase(str.charAt(0)) + str.substring(1);
     }
 
     private Kernel createKernel(ChatCompletionService chatCompletionService) {
         return Kernel.builder()
                 .withAIService(ChatCompletionService.class, chatCompletionService)
                 .build();
-    }
-
-    private String processResponse(List<ChatMessageContent<?>> response) {
-        if (response == null || response.isEmpty()) {
-            return "No response received from the assistant.";
-        }
-
-        for (ChatMessageContent<?> result : response) {
-            if (result.getAuthorRole() == AuthorRole.ASSISTANT && result.getContent() != null) {
-                log.info("Assistant > {}", result);
-                chatHistory.addAssistantMessage(result.getContent()); // Add assistant's message to chat history
-            }
-        }
-        return response.get(0).getContent();
     }
 }

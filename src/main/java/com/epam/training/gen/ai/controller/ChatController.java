@@ -10,13 +10,13 @@ import org.springframework.web.bind.annotation.*;
 public class ChatController {
 
   @Autowired
-  private ChatService openAIService;
+  private ChatService chatService;
 
   @GetMapping
   public ResponseEntity<String> handleChatPrompt(
       @RequestParam("prompt") String prompt) {
     System.out.println("Received prompt: " + prompt);
-    String response = openAIService.getChatCompletions(prompt);
+    String response = chatService.getChatCompletions(prompt);
     return ResponseEntity.ok(response);
   }
 }
