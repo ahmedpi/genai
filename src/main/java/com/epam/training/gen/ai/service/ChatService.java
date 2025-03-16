@@ -1,19 +1,13 @@
 package com.epam.training.gen.ai.service;
 
-import com.epam.training.gen.ai.dto.ChatHistoryDto;
-import com.epam.training.gen.ai.model.Message;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.semantickernel.Kernel;
 import com.microsoft.semantickernel.orchestration.InvocationContext;
-import com.microsoft.semantickernel.semanticfunctions.KernelFunction;
-import com.microsoft.semantickernel.semanticfunctions.KernelFunctionArguments;
 import com.microsoft.semantickernel.services.chatcompletion.ChatCompletionService;
 import com.microsoft.semantickernel.services.chatcompletion.ChatHistory;
 import com.microsoft.semantickernel.services.chatcompletion.ChatMessageContent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
