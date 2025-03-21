@@ -9,5 +9,4 @@ client:
   azureopenai:
     key: ${AZURE_CLIENT_KEY}
     endpoint: ${CLIENT_ENDPOINT}
-
-model: gpt-4o
+    deployment-name: gpt-4o
