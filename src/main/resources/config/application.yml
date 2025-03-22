@@ -7,6 +7,6 @@ spring:
 
 client:
   azureopenai:
-    key: ${AZURE_CLIENT_KEY}
-    endpoint: ${CLIENT_ENDPOINT}
-    deployment-name: gpt-4o
+    key: ${DIAL_API_KEY}
+    endpoint: ${DIAL_API_ENDPOINT}
+    deployment-name: ${DIAL_API_DEPLOYMENT_NAME}
