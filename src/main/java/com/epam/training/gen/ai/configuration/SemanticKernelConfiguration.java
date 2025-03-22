@@ -1,6 +1,7 @@
 package com.epam.training.gen.ai.configuration;
 
 import com.azure.ai.openai.OpenAIAsyncClient;
+import com.microsoft.semantickernel.Kernel;
 import com.microsoft.semantickernel.aiservices.openai.chatcompletion.OpenAIChatCompletion;
 import com.microsoft.semantickernel.orchestration.InvocationContext;
 import com.microsoft.semantickernel.orchestration.PromptExecutionSettings;
@@ -51,6 +52,13 @@ public class SemanticKernelConfiguration {
                         .withTemperature(0.5)
                         .build())
                 .build();
+    }
+
+    @Bean
+    public Kernel semanticKernel(ChatCompletionService chatCompletionService) {
+        return Kernel.builder()
+            .withAIService(ChatCompletionService.class, chatCompletionService)
+            .build();
     }
 }
 
