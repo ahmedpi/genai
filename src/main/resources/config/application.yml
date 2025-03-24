@@ -9,4 +9,4 @@ client:
   azureopenai:
     key: ${DIAL_API_KEY}
     endpoint: ${DIAL_API_ENDPOINT}
-    deployment-name: ${DIAL_API_DEPLOYMENT_NAME}
+    deployment-name: gpt-4o
