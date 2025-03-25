@@ -8,8 +8,8 @@ import org.springframework.context.annotation.PropertySource;
 @PropertySource("classpath:/config/application.yml")
 public class GenAiTrainingApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(GenAiTrainingApplication.class, args);
-	}
+  public static void main(String[] args) {
+    SpringApplication.run(GenAiTrainingApplication.class, args);
+  }
 
 }

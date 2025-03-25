@@ -1,6 +1,6 @@
 package com.epam.training.gen.ai.controller;
 
-import com.epam.training.gen.ai.dto.PromptRequest;
+import com.epam.training.gen.ai.dto.OpenAIRequest;
 import com.epam.training.gen.ai.service.ChatService;
 import com.epam.training.gen.ai.service.DynamicModelChatService;
 import java.util.HashMap;
@@ -61,23 +61,11 @@ public class ChatController {
     }
   }
 
-  @GetMapping(path = "/task-3")
-  public ResponseEntity<String> handleChatPromptDifferentModels(
-      @RequestBody PromptRequest promptRequest) {
-    try {
-      String response = dynamicModelChatService.getChatCompletionsDifferentModels(promptRequest);
-      return ResponseEntity.ok(response);
-    } catch (Exception e) {
-      String errorMessage = "Error processing request: " + e.getMessage();
-      return ResponseEntity.badRequest().body(errorMessage);
-    }
-  }
-
   @GetMapping(path = "/task-3/deployments")
   public ResponseEntity<List<String>> getDeployments() {
     try {
       log.info("Fetching deployments...");
-      List<String> deployments = dynamicModelChatService.getDeployments();
+      List<String> deployments = dynamicModelChatService.getAvailableDeployments();
       return ResponseEntity.ok(deployments);
     } catch (Exception e) {
       log.error("Error fetching deployments: {}", e.getMessage(), e);
@@ -85,8 +73,20 @@ public class ChatController {
     }
   }
 
+  @GetMapping(path = "/task-3")
+  public ResponseEntity<String> handleChatPromptDifferentModels(
+      @RequestBody OpenAIRequest request) {
+    try {
+      String response = dynamicModelChatService.getChatCompletionsDifferentModels(request);
+      return ResponseEntity.ok(response);
+    } catch (Exception e) {
+      String errorMessage = "Error processing request: " + e.getMessage();
+      return ResponseEntity.badRequest().body(errorMessage);
+    }
+  }
+
   @GetMapping(path = "/task-3/generate-image")
-  public ResponseEntity<String> generateImage(@RequestBody PromptRequest promptRequest) {
+  public ResponseEntity<String> generateImage(@RequestBody OpenAIRequest promptRequest) {
     try {
       log.info("Generating image...");
       String image = dynamicModelChatService.generateImage(promptRequest);

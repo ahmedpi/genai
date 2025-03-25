@@ -3,14 +3,14 @@ package com.epam.training.gen.ai.service;
 import com.azure.ai.openai.OpenAIAsyncClient;
 import com.azure.ai.openai.OpenAIClient;
 import com.azure.ai.openai.OpenAIClientBuilder;
-import com.azure.ai.openai.models.ImageGenerationData;
 import com.azure.ai.openai.models.ImageGenerationOptions;
 import com.azure.ai.openai.models.ImageGenerations;
 import com.azure.core.credential.AzureKeyCredential;
+import com.epam.training.gen.ai.dto.Input;
 import com.epam.training.gen.ai.dto.ModelInfo;
 import com.epam.training.gen.ai.dto.ModelListResponse;
-import com.epam.training.gen.ai.dto.PromptRequest;
-import com.epam.training.gen.ai.util.PromptUtil;
+import com.epam.training.gen.ai.dto.OpenAIRequest;
+import com.epam.training.gen.ai.util.ChatUtils;
 import com.microsoft.semantickernel.Kernel;
 import com.microsoft.semantickernel.aiservices.openai.chatcompletion.OpenAIChatCompletion;
 import com.microsoft.semantickernel.orchestration.InvocationContext;
@@ -32,11 +32,13 @@ import org.springframework.web.client.RestTemplate;
 @Slf4j
 public class DynamicModelChatService {
 
-  @Autowired
-  private OpenAIAsyncClient openAIAsyncClient;
-
-  @Autowired
-  private ChatCompletionService defaultChatCompletionService;
+  private static final String DEPLOYMENTS_API_URL = "https://ai-proxy.lab.epam.com/openai/deployments";
+  private static final String NO_RESPONSE_FOUND_MSG = "No response received from the assistant.";
+  private static final String DEFAULT_SYSTEM_MSG = """ 
+          You will be provided with statements probably with grammatical and vocabulary mistakes,
+          and your task is to convert them to standard English
+          Be polite and give brief explanation of the correction.
+      """;
 
   @Value("${client.azureopenai.key}")
   private String key;
@@ -47,70 +49,33 @@ public class DynamicModelChatService {
   @Value("${client.azureopenai.deployment-name}")
   private String defaultDeployment;
 
-  private RestTemplate restTemplate;
+  @Autowired
+  private OpenAIAsyncClient openAIAsyncClient;
+
+  @Autowired
+  private ChatCompletionService defaultChatCompletionService;
+
+  private final RestTemplate restTemplate;
+
+  private final ChatHistory chatHistory = new ChatHistory();
 
   public DynamicModelChatService() {
     this.restTemplate = new RestTemplate();
+    chatHistory.addSystemMessage(DEFAULT_SYSTEM_MSG);
   }
 
-  private static final String NO_RESPONSE_FOUND_MSG = "No response received from the assistant.";
-
-  ChatHistory chatHistory = new ChatHistory();
-
-  public String getChatCompletionsDifferentModels(PromptRequest promptRequest) {
-    ChatCompletionService chatCompletionService;
-
-    log.info("Fetching conversation response for prompt: {}", promptRequest.prompt());
-    String deploymentName;
-    if (promptRequest.deploymentName() != null && !promptRequest.deploymentName().isEmpty()) {
-      deploymentName = promptRequest.deploymentName();
-      chatCompletionService = OpenAIChatCompletion.builder()
-          .withModelId(deploymentName)
-          .withOpenAIAsyncClient(openAIAsyncClient) // Inject reusable dependency
-          .build();
-      log.info("Dynamically created ChatCompletionService for deployment: {}", deploymentName);
-    } else {
-      deploymentName = defaultDeployment;
-      chatCompletionService = defaultChatCompletionService;
-      log.info("Using default ChatCompletionService bean.");
-    }
-
-    InvocationContext invocationContext = InvocationContext.builder()
-        .withPromptExecutionSettings(
-            PromptUtil.buildPromptSettings(deploymentName, 150,
-                promptRequest.temperature()))
-        .build();
-
-    chatHistory.addUserMessage(promptRequest.prompt());
-
-    Kernel semanticKernel = Kernel.builder()
-        .withAIService(ChatCompletionService.class, chatCompletionService)
-        .build();
-
-    List<ChatMessageContent<?>> responses = chatCompletionService.getChatMessageContentsAsync(
-        chatHistory,
-        semanticKernel,
-        invocationContext
-    ).block();
-
-    if (responses == null || responses.isEmpty()) {
-      return NO_RESPONSE_FOUND_MSG;
-    }
-
-    chatHistory.addAssistantMessage(responses.get(0).getContent());
-
-    return responses.get(0).getContent();
-  }
-
-  public List<String> getDeployments() {
-    String url = "https://ai-proxy.lab.epam.com/openai/deployments"; // Remote API URL
-
+  /**
+   * Retrieves the list of available deployment models.
+   *
+   * @return List of deployment model names
+   */
+  public List<String> getAvailableDeployments() {
     HttpHeaders headers = new HttpHeaders();
     headers.set("Api-Key", key);
     HttpEntity<String> entity = new HttpEntity<>(headers);
 
     ResponseEntity<ModelListResponse> response = restTemplate.exchange(
-        url,
+        DEPLOYMENTS_API_URL,
         HttpMethod.GET,
         entity,
         ModelListResponse.class
@@ -121,38 +86,118 @@ public class DynamicModelChatService {
         .toList();
   }
 
-  public String generateImage(PromptRequest promptRequest) {
-    OpenAIClient client = new OpenAIClientBuilder()
-        .credential(new AzureKeyCredential(key))
-        .endpoint(endpoint)
-        .buildClient();
+  /**
+   * Handles dynamic model selection for chat completions and returns the assistant's response.
+   *
+   * @param request OpenAIRequest containing input data for the chat
+   * @return Assistant's response
+   */
+  public String getChatCompletionsDifferentModels(OpenAIRequest request) {
+    String deploymentName = getDeploymentName(request);
+    ChatCompletionService chatCompletionService = createChatCompletionService(deploymentName);
 
+    InvocationContext invocationContext = createInvocationContext(request, deploymentName);
+    Kernel semanticKernel = createSemanticKernel(chatCompletionService);
+
+    log.info("Created ChatCompletionService for deployment: {}",
+        chatCompletionService.getModelId());
+
+    populateChatHistory(request.inputs());
+
+    List<ChatMessageContent<?>> responses = getResponses(chatCompletionService, semanticKernel,
+        invocationContext);
+
+    if (responses == null || responses.isEmpty()) {
+      log.warn("No response received for chat completions.");
+      return NO_RESPONSE_FOUND_MSG;
+    }
+
+    addAssistantMessageToChatHistory(responses.get(0).getContent());
+
+    ChatUtils.printChatHistory(chatHistory);
+
+    return responses.get(0).getContent();
+  }
+
+  /**
+   * Generates an image based on the prompt provided.
+   *
+   * @param promptRequest OpenAIRequest with image generation prompt
+   * @return Message indicating an image was generated
+   */
+  public String generateImage(OpenAIRequest promptRequest) {
+    OpenAIClient client = createOpenAIClient();
     ImageGenerationOptions imageGenerationOptions = new ImageGenerationOptions(
-        "A drawing of the Seattle skyline in the style of Van Gogh");
+        "A drawing of the paris tower");
+
     ImageGenerations images = client.getImageGenerations(promptRequest.deploymentName(),
         imageGenerationOptions);
 
-    for (ImageGenerationData imageGenerationData : images.getData()) {
-      System.out.printf(
-          "Image location URL that provides temporary access to download the generated image is %s.%n",
-          imageGenerationData.getUrl());
-    }
-
-//
-//    ImageGenerationOptions imageGenerationOptions = new ImageGenerationOptions(
-//        "A drawing of the Seattle skyline in the style of Van Gogh");
-//
-//    openAIAsyncClient.getImageGenerations(promptRequest.deploymentName(), imageGenerationOptions).subscribe(
-//        images -> {
-//          for (ImageGenerationData imageGenerationData : images.getData()) {
-//            System.out.printf(
-//                "Image location URL that provides temporary access to download the generated image is %s.%n",
-//                imageGenerationData.getUrl());
-//          }
-//        },
-//        error -> System.err.println("There was an error getting images. " + error),
-//        () -> System.out.println("Completed getImages."));
+    images.getData().forEach(imageGenerationData -> log.info(
+        "Generated image URL: {}", imageGenerationData.getUrl()));
 
     return "Image Generated";
+  }
+
+  private String getDeploymentName(OpenAIRequest request) {
+    if (request.deploymentName() != null && !request.deploymentName().isEmpty()) {
+      log.info("Using dynamic deployment: {}", request.deploymentName());
+      return request.deploymentName();
+    }
+
+    log.info("Using default deployment: {}", defaultDeployment);
+    return defaultDeployment;
+  }
+
+  private ChatCompletionService createChatCompletionService(String deploymentName) {
+    if (deploymentName.equals(defaultDeployment)) {
+      return defaultChatCompletionService;
+    }
+
+    return OpenAIChatCompletion.builder()
+        .withModelId(deploymentName)
+        .withOpenAIAsyncClient(openAIAsyncClient)
+        .build();
+  }
+
+  private InvocationContext createInvocationContext(OpenAIRequest request, String deploymentName) {
+    return InvocationContext.builder()
+        .withPromptExecutionSettings(
+            ChatUtils.buildPromptSettings(deploymentName, 150, request.temperature()))
+        .build();
+  }
+
+  private Kernel createSemanticKernel(ChatCompletionService chatCompletionService) {
+    return Kernel.builder()
+        .withAIService(ChatCompletionService.class, chatCompletionService)
+        .build();
+  }
+
+  private void populateChatHistory(List<Input> inputs) {
+    inputs.forEach(input -> {
+      log.info("Processing input -> Role: {}, Text: {}", input.getRole(), input.getText());
+      if ("system".equalsIgnoreCase(input.getRole())) {
+        chatHistory.addSystemMessage(input.getText());
+      } else {
+        chatHistory.addUserMessage(input.getText());
+      }
+    });
+  }
+
+  private List<ChatMessageContent<?>> getResponses(ChatCompletionService chatCompletionService,
+      Kernel kernel, InvocationContext context) {
+    log.info("Fetching responses from chat completion service...");
+    return chatCompletionService.getChatMessageContentsAsync(chatHistory, kernel, context).block();
+  }
+
+  private void addAssistantMessageToChatHistory(String content) {
+    chatHistory.addAssistantMessage(content);
+  }
+
+  private OpenAIClient createOpenAIClient() {
+    return new OpenAIClientBuilder()
+        .credential(new AzureKeyCredential(key))
+        .endpoint(endpoint)
+        .buildClient();
   }
 }
