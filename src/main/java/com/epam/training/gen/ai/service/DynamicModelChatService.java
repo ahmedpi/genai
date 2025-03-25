@@ -34,11 +34,11 @@ public class DynamicModelChatService {
 
   private static final String DEPLOYMENTS_API_URL = "https://ai-proxy.lab.epam.com/openai/deployments";
   private static final String NO_RESPONSE_FOUND_MSG = "No response received from the assistant.";
-  private static final String DEFAULT_SYSTEM_MSG = """ 
-          You will be provided with statements probably with grammatical and vocabulary mistakes,
-          and your task is to convert them to standard English
-          Be polite and give brief explanation of the correction.
-      """;
+  //  private static final String DEFAULT_SYSTEM_MSG = """
+//          You will be provided with statements probably with grammatical and vocabulary mistakes,
+//          and your task is to convert them to standard English
+//          Be polite and give brief explanation of the correction.
+//      """;
 
   @Value("${client.azureopenai.key}")
   private String key;
@@ -61,7 +61,7 @@ public class DynamicModelChatService {
 
   public DynamicModelChatService() {
     this.restTemplate = new RestTemplate();
-    chatHistory.addSystemMessage(DEFAULT_SYSTEM_MSG);
+//    chatHistory.addSystemMessage(DEFAULT_SYSTEM_MSG);
   }
 
   /**
@@ -163,7 +163,7 @@ public class DynamicModelChatService {
   private InvocationContext createInvocationContext(OpenAIRequest request, String deploymentName) {
     return InvocationContext.builder()
         .withPromptExecutionSettings(
-            ChatUtils.buildPromptSettings(deploymentName, 150, request.temperature()))
+            ChatUtils.buildPromptSettings(deploymentName, request.maxTokens(), request.temperature()))
         .build();
   }
 

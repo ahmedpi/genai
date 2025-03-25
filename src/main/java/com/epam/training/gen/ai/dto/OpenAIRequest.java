@@ -5,6 +5,7 @@ import java.util.List;
 public record OpenAIRequest(
     String deploymentName,
     Double temperature,
+    Integer maxTokens,
     List<Input> inputs
 ) {
 
