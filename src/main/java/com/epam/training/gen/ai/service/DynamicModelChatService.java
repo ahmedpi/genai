@@ -3,20 +3,20 @@ package com.epam.training.gen.ai.service;
 import com.azure.ai.openai.OpenAIAsyncClient;
 import com.azure.ai.openai.OpenAIClient;
 import com.azure.ai.openai.OpenAIClientBuilder;
-import com.azure.ai.openai.models.ImageGenerationOptions;
-import com.azure.ai.openai.models.ImageGenerations;
 import com.azure.core.credential.AzureKeyCredential;
 import com.epam.training.gen.ai.dto.Input;
 import com.epam.training.gen.ai.dto.ModelInfo;
 import com.epam.training.gen.ai.dto.ModelListResponse;
 import com.epam.training.gen.ai.dto.OpenAIRequest;
 import com.epam.training.gen.ai.util.ChatUtils;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.semantickernel.Kernel;
 import com.microsoft.semantickernel.aiservices.openai.chatcompletion.OpenAIChatCompletion;
 import com.microsoft.semantickernel.orchestration.InvocationContext;
 import com.microsoft.semantickernel.services.chatcompletion.ChatCompletionService;
 import com.microsoft.semantickernel.services.chatcompletion.ChatHistory;
 import com.microsoft.semantickernel.services.chatcompletion.ChatMessageContent;
+import java.net.http.HttpClient;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,11 +34,12 @@ public class DynamicModelChatService {
 
   private static final String DEPLOYMENTS_API_URL = "https://ai-proxy.lab.epam.com/openai/deployments";
   private static final String NO_RESPONSE_FOUND_MSG = "No response received from the assistant.";
+
   //  private static final String DEFAULT_SYSTEM_MSG = """
-//          You will be provided with statements probably with grammatical and vocabulary mistakes,
-//          and your task is to convert them to standard English
-//          Be polite and give brief explanation of the correction.
-//      """;
+  //          You will be provided with statements probably with grammatical and vocabulary mistakes,
+  //          and your task is to convert them to standard English
+  //          Be polite and give brief explanation of the correction.
+  //      """;
 
   @Value("${client.azureopenai.key}")
   private String key;
@@ -47,13 +48,16 @@ public class DynamicModelChatService {
   private String endpoint;
 
   @Value("${client.azureopenai.deployment-name}")
-  private String defaultDeployment;
+  private String deploymentName;
 
   @Autowired
   private OpenAIAsyncClient openAIAsyncClient;
 
   @Autowired
   private ChatCompletionService defaultChatCompletionService;
+
+  private final HttpClient httpClient = HttpClient.newBuilder().build();
+  private final ObjectMapper objectMapper = new ObjectMapper();
 
   private final RestTemplate restTemplate;
 
@@ -119,38 +123,18 @@ public class DynamicModelChatService {
     return responses.get(0).getContent();
   }
 
-  /**
-   * Generates an image based on the prompt provided.
-   *
-   * @param promptRequest OpenAIRequest with image generation prompt
-   * @return Message indicating an image was generated
-   */
-  public String generateImage(OpenAIRequest promptRequest) {
-    OpenAIClient client = createOpenAIClient();
-    ImageGenerationOptions imageGenerationOptions = new ImageGenerationOptions(
-        "A drawing of the paris tower");
-
-    ImageGenerations images = client.getImageGenerations(promptRequest.deploymentName(),
-        imageGenerationOptions);
-
-    images.getData().forEach(imageGenerationData -> log.info(
-        "Generated image URL: {}", imageGenerationData.getUrl()));
-
-    return "Image Generated";
-  }
-
   private String getDeploymentName(OpenAIRequest request) {
     if (request.deploymentName() != null && !request.deploymentName().isEmpty()) {
       log.info("Using dynamic deployment: {}", request.deploymentName());
       return request.deploymentName();
     }
 
-    log.info("Using default deployment: {}", defaultDeployment);
-    return defaultDeployment;
+    log.info("Using default deployment: {}", deploymentName);
+    return deploymentName;
   }
 
-  private ChatCompletionService createChatCompletionService(String deploymentName) {
-    if (deploymentName.equals(defaultDeployment)) {
+  private ChatCompletionService createChatCompletionService(String deployment) {
+    if (deployment.equals(deploymentName)) {
       return defaultChatCompletionService;
     }
 
@@ -163,7 +147,8 @@ public class DynamicModelChatService {
   private InvocationContext createInvocationContext(OpenAIRequest request, String deploymentName) {
     return InvocationContext.builder()
         .withPromptExecutionSettings(
-            ChatUtils.buildPromptSettings(deploymentName, request.maxTokens(), request.temperature()))
+            ChatUtils.buildPromptSettings(deploymentName, request.maxTokens(),
+                request.temperature()))
         .build();
   }
 
