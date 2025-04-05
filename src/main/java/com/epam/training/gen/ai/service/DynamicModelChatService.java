@@ -183,7 +183,7 @@ public class DynamicModelChatService {
   private InvocationContext createInvocationContext(OpenAIRequest request, String deploymentName) {
     return InvocationContext.builder()
         .withPromptExecutionSettings(
-            ChatUtils.buildPromptSettings(deploymentName, request.maxTokens(),
+            ChatUtils.buildPromptSettings(deploymentName,
                 request.temperature()))
         .build();
   }
