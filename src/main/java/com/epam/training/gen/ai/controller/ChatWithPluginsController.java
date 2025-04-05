@@ -1,10 +1,8 @@
 package com.epam.training.gen.ai.controller;
 
-import com.epam.training.gen.ai.dto.Request;
+import com.epam.training.gen.ai.dto.PromptRequest;
 import com.epam.training.gen.ai.service.ChatWithPluginsService;
 import com.epam.training.gen.ai.service.DynamicModelChatService;
-import java.util.HashMap;
-import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -25,7 +23,7 @@ public class ChatWithPluginsController {
 
   @PostMapping(path = "/chat-with-plugins")
   public ResponseEntity<String> handleChatPrompt(
-      @RequestBody Request request) {
+      @RequestBody PromptRequest request) {
     try {
       validatePrompt(request.prompt());
       System.out.println("Prompt: " + request.prompt());

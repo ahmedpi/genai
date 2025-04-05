@@ -1,6 +1,6 @@
 package com.epam.training.gen.ai.service;
 
-import com.epam.training.gen.ai.dto.Request;
+import com.epam.training.gen.ai.dto.PromptRequest;
 import com.epam.training.gen.ai.util.ChatUtils;
 import com.microsoft.semantickernel.Kernel;
 import com.microsoft.semantickernel.orchestration.InvocationContext;
@@ -29,15 +29,9 @@ public class ChatWithPluginsService {
     this.chatCompletionService = chatCompletionService;
     this.invocationContext = invocationContext;
     this.semanticKernel = semanticKernel;
-//    this.chatHistory.addSystemMessage("""
-//        You are a helpful assistant.
-//        Your task is to assist with questions.
-//        If asked to change the state of lights,
-//        respond also by providing the list of lights.
-//        """);
   }
 
-  public String chatWithPlugins(Request request) {
+  public String chatWithPlugins(PromptRequest request) {
     InvocationContext invocationContext = new InvocationContext.Builder()
         .withPromptExecutionSettings(
             ChatUtils.buildPromptSettings(request.deploymentName(),
@@ -51,6 +45,11 @@ public class ChatWithPluginsService {
     List<ChatMessageContent<?>> results = chatCompletionService
         .getChatMessageContentsAsync(chatHistory, semanticKernel, invocationContext)
         .block();
+
+    if (results == null || results.isEmpty()) {
+      log.warn("No response received for chat completions.");
+      return NO_RESPONSE_FOUND_MSG;
+    }
 
     System.out.println("Assistant > " + results.get(0));
 

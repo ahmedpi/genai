@@ -1,9 +1,10 @@
 package com.epam.training.gen.ai.configuration;
 
 import com.azure.ai.openai.OpenAIAsyncClient;
-import com.epam.training.gen.ai.plugin.AgeCalculator;
+import com.epam.training.gen.ai.plugin.AgeCalculatorPlugin;
+import com.epam.training.gen.ai.plugin.CurrencyConverterPlugin;
 import com.epam.training.gen.ai.plugin.LightsPlugin;
-import com.epam.training.gen.ai.plugin.SimplePlugin;
+import com.epam.training.gen.ai.plugin.SearchUrlPlugin;
 import com.microsoft.semantickernel.Kernel;
 import com.microsoft.semantickernel.aiservices.openai.chatcompletion.OpenAIChatCompletion;
 import com.microsoft.semantickernel.orchestration.InvocationContext;
@@ -58,18 +59,24 @@ public class SemanticKernelConfiguration {
 
   @Bean
   public Kernel semanticKernel(ChatCompletionService chatCompletionService) {
-    // Import the LightsPlugin
-    KernelPlugin simplePlugin = KernelPluginFactory.createFromObject(new SimplePlugin(),
-        "SimplePlugin");
     KernelPlugin lightPlugin = KernelPluginFactory.createFromObject(new LightsPlugin(),
         "LightsPlugin");
-    KernelPlugin ageCalculator = KernelPluginFactory.createFromObject(new AgeCalculator(),
-        "AgeCalculator");
+    KernelPlugin ageCalculatorPlugin = KernelPluginFactory.createFromObject(
+        new AgeCalculatorPlugin(),
+        "AgeCalculatorPlugin");
+    KernelPlugin currencyConverterPlugin = KernelPluginFactory.createFromObject(
+        new CurrencyConverterPlugin(),
+        "CurrencyConverterPlugin");
+    KernelPlugin searchUrlPlugin = KernelPluginFactory.createFromObject(
+        new SearchUrlPlugin(),
+        "SearchUrlPlugin");
+
     return Kernel.builder()
         .withAIService(ChatCompletionService.class, chatCompletionService)
-        .withPlugin(simplePlugin)
         .withPlugin(lightPlugin)
-        .withPlugin(ageCalculator)
+        .withPlugin(ageCalculatorPlugin)
+        .withPlugin(currencyConverterPlugin)
+        .withPlugin(searchUrlPlugin)
         .build();
   }
 }
