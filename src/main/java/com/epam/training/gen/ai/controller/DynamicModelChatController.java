@@ -1,9 +1,7 @@
 package com.epam.training.gen.ai.controller;
 
 import com.epam.training.gen.ai.dto.OpenAIRequest;
-import com.epam.training.gen.ai.service.ChatService;
 import com.epam.training.gen.ai.service.DynamicModelChatService;
-import java.io.IOException;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +37,17 @@ public class DynamicModelChatController {
       @RequestBody OpenAIRequest request) {
     try {
       String response = dynamicModelChatService.getChatCompletionsDifferentModels(request);
+      return ResponseEntity.ok(response);
+    } catch (Exception e) {
+      String errorMessage = "Error processing request: " + e.getMessage();
+      return ResponseEntity.badRequest().body(errorMessage);
+    }
+  }
+
+  @GetMapping(path = "/generate-image")
+  public ResponseEntity<String> generateImage(@RequestParam("prompt") String prompt) {
+    try {
+      String response = dynamicModelChatService.generateImage(prompt);
       return ResponseEntity.ok(response);
     } catch (Exception e) {
       String errorMessage = "Error processing request: " + e.getMessage();
