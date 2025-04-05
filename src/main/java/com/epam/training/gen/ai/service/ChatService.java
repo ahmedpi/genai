@@ -1,16 +1,15 @@
 package com.epam.training.gen.ai.service;
 
-import com.azure.ai.openai.OpenAIAsyncClient;
+import com.epam.training.gen.ai.util.ChatUtils;
 import com.microsoft.semantickernel.Kernel;
 import com.microsoft.semantickernel.orchestration.InvocationContext;
 import com.microsoft.semantickernel.services.chatcompletion.AuthorRole;
 import com.microsoft.semantickernel.services.chatcompletion.ChatCompletionService;
 import com.microsoft.semantickernel.services.chatcompletion.ChatHistory;
 import com.microsoft.semantickernel.services.chatcompletion.ChatMessageContent;
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
 
 @Service
 @Slf4j
@@ -61,24 +60,8 @@ public class ChatService {
 
     chatHistory.addAssistantMessage(responses.get(0).getContent());
 
-    printChatHistory();
+    ChatUtils.printChatHistory(chatHistory);
 
     return responses.get(0).getContent();
-  }
-
-  public void printChatHistory() {
-    System.out.println("Chat History:");
-    chatHistory.forEach(chatMessageContent -> {
-      String role = chatMessageContent.getAuthorRole().toString().toLowerCase();
-      String content = chatMessageContent.getContent();
-      System.out.printf("%s: %s%n", capitalize(role), content);
-    });
-  }
-
-  private String capitalize(String str) {
-    if (str == null || str.isEmpty()) {
-      return str;
-    }
-    return Character.toUpperCase(str.charAt(0)) + str.substring(1);
   }
 }
