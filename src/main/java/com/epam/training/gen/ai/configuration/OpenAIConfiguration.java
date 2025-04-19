@@ -10,29 +10,30 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Configuration class for setting up the Azure OpenAI Async Client.
  * <p>
- * This configuration defines a bean that provides an asynchronous client
- * for interacting with the Azure OpenAI Service. It uses the Azure Key
- * Credential for authentication and connects to a specified endpoint.
+ * This configuration defines a bean that provides an asynchronous client for interacting with the
+ * Azure OpenAI Service. It uses the Azure Key Credential for authentication and connects to a
+ * specified endpoint.
  */
 @Configuration
 public class OpenAIConfiguration {
 
-    @Value("${client.azureopenai.key}")
-    private String clientKey;
+  @Value("${client.azureopenai.key}")
+  private String clientKey;
 
-    @Value("${client.azureopenai.endpoint}")
-    private String clientEndpoint;
+  @Value("${client.azureopenai.endpoint}")
+  private String clientEndpoint;
 
-    /**
-     * Creates an {@link OpenAIAsyncClient} bean for interacting with Azure OpenAI Service asynchronously.
-     *
-     * @return an instance of {@link OpenAIAsyncClient}
-     */
-    @Bean
-    public OpenAIAsyncClient openAIAsyncClient() {
-        return new OpenAIClientBuilder()
-                .credential(new AzureKeyCredential(clientKey))
-                .endpoint(clientEndpoint)
-                .buildAsyncClient();
-    }
+  /**
+   * Creates an {@link OpenAIAsyncClient} bean for interacting with Azure OpenAI Service
+   * asynchronously.
+   *
+   * @return an instance of {@link OpenAIAsyncClient}
+   */
+  @Bean
+  public OpenAIAsyncClient openAIAsyncClient() {
+    return new OpenAIClientBuilder()
+        .credential(new AzureKeyCredential(clientKey))
+        .endpoint(clientEndpoint)
+        .buildAsyncClient();
+  }
 }
