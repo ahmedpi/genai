@@ -11,9 +11,6 @@ import com.azure.ai.openai.models.Embeddings;
 import com.azure.ai.openai.models.EmbeddingsOptions;
 import com.epam.training.gen.ai.dto.ScoredPointDto;
 import com.microsoft.semantickernel.Kernel;
-import com.microsoft.semantickernel.aiservices.openai.textembedding.OpenAITextEmbeddingGenerationService;
-import com.microsoft.semantickernel.services.ServiceNotFoundException;
-import com.microsoft.semantickernel.services.textembedding.Embedding;
 import io.qdrant.client.QdrantClient;
 import io.qdrant.client.grpc.Collections;
 import io.qdrant.client.grpc.JsonWithInt;
@@ -118,12 +115,12 @@ public class EmbeddingService {
   }
 
   public List<ScoredPointDto> search(String prompt) {
-    List<Embedding> embeddings = build(prompt);
+    List<EmbeddingItem> embeddings = buildEmbedding(prompt);
     List<Points.ScoredPoint> response = null;
     try {
       response = qdrantClient.searchAsync(Points.SearchPoints.newBuilder()
           .setCollectionName(COLLECTION_NAME)
-          .addAllVector(embeddings.getFirst().getVector())
+          .addAllVector(embeddings.getFirst().getEmbedding())
           .setLimit(10)
           .setWithPayload(enable(true))
           .build()).get();
@@ -166,7 +163,7 @@ public class EmbeddingService {
     if (payload != null) {
       pointStructs = getPointStructsWithPayload(embeddings, payload);
     } else {
-      pointStructs = getPointStructs(embeddings, null);
+      pointStructs = getPointStructs(embeddings);
     }
 
     UpdateResult updateResult;
@@ -196,8 +193,7 @@ public class EmbeddingService {
     log.info("Collection was created: [{}]", result.getResult());
   }
 
-  private static List<PointStruct> getPointStructs(List<EmbeddingItem> embeddings,
-      Map<String, JsonWithInt.Value> payload) {
+  private static List<PointStruct> getPointStructs(List<EmbeddingItem> embeddings) {
     return embeddings.stream().map(embedding -> {
       UUID id = UUID.randomUUID();
       return PointStruct.newBuilder()
@@ -222,24 +218,5 @@ public class EmbeddingService {
   private Mono<Embeddings> retrieveEmbeddings(String text) {
     var qembeddingsOptions = new EmbeddingsOptions(List.of(text));
     return openAIAsyncClient.getEmbeddings(embeddingDeploymentName, qembeddingsOptions);
-  }
-
-  public List<Embedding> build(String prompt) {
-    OpenAITextEmbeddingGenerationService embeddingGenerationService = null;
-    try {
-      embeddingGenerationService = semanticKernel.getService(
-          OpenAITextEmbeddingGenerationService.class);
-    } catch (ServiceNotFoundException e) {
-      throw new RuntimeException(e);
-    }
-    List<Embedding> generatedEmbeddingsAsync = embeddingGenerationService.generateEmbeddingsAsync(
-            List.of(prompt))
-        .block();
-
-    assert generatedEmbeddingsAsync != null;
-    generatedEmbeddingsAsync.forEach(embedding -> {
-      log.info("** {}", embedding.getVector());
-    });
-    return generatedEmbeddingsAsync;
   }
 }
