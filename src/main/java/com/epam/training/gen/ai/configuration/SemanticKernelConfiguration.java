@@ -7,6 +7,7 @@ import com.epam.training.gen.ai.plugin.LightsPlugin;
 import com.epam.training.gen.ai.plugin.SearchUrlPlugin;
 import com.microsoft.semantickernel.Kernel;
 import com.microsoft.semantickernel.aiservices.openai.chatcompletion.OpenAIChatCompletion;
+import com.microsoft.semantickernel.aiservices.openai.textembedding.OpenAITextEmbeddingGenerationService;
 import com.microsoft.semantickernel.orchestration.InvocationContext;
 import com.microsoft.semantickernel.orchestration.PromptExecutionSettings;
 import com.microsoft.semantickernel.plugin.KernelPlugin;
@@ -25,6 +26,9 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 public class SemanticKernelConfiguration {
+
+  @Value("${openai-embedding-deployment-name}")
+  private String embeddingDeploymentName;
 
   /**
    * Creates a {@link ChatCompletionService} bean for handling chat completions using Azure OpenAI.
@@ -78,6 +82,12 @@ public class SemanticKernelConfiguration {
         .withPlugin(currencyConverterPlugin)
         .withPlugin(searchUrlPlugin)
         .build();
+  }
+
+  @Bean(name = "embeddingKernel")
+  public Kernel embeddingKernel(OpenAIAsyncClient client) {
+    return Kernel.builder().withAIService(OpenAITextEmbeddingGenerationService.class, OpenAITextEmbeddingGenerationService.builder()
+        .withModelId(embeddingDeploymentName).withOpenAIAsyncClient(client).build()).build();
   }
 }
 

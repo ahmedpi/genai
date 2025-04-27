@@ -27,15 +27,15 @@ public class ChatService {
     this.chatCompletionService = chatCompletionService;
     this.invocationContext = invocationContext;
     this.semanticKernel = semanticKernel;
-    this.chatHistory.addSystemMessage("""
-        You are a helpful assistant.
-        Your task is to assist with order requests for our menu.
-        We have pizza, pasta, and salad available to order.
-        """);
+//    this.chatHistory.addSystemMessage("""
+//        You are a helpful assistant.
+//        Your task is to assist with order requests for our menu.
+//        We have pizza, pasta, and salad available to order.
+//        """);
   }
 
   public String getChatCompletions(String prompt) {
-    ChatHistory history = new ChatHistory();
+      ChatHistory history = new ChatHistory();
     history.addMessage(AuthorRole.USER, prompt);
 
     List<ChatMessageContent<?>> responses = chatCompletionService.getChatMessageContentsAsync(
