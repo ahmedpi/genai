@@ -1,4 +1,4 @@
-package com.epam.training.gen.ai.vector;
+package com.epam.training.gen.ai.service;
 
 
 import static io.qdrant.client.PointIdFactory.id;
@@ -10,20 +10,25 @@ import com.azure.ai.openai.models.EmbeddingItem;
 import com.azure.ai.openai.models.Embeddings;
 import com.azure.ai.openai.models.EmbeddingsOptions;
 import com.epam.training.gen.ai.dto.ScoredPointDto;
+import com.microsoft.semantickernel.Kernel;
 import io.qdrant.client.QdrantClient;
 import io.qdrant.client.grpc.Collections;
+import io.qdrant.client.grpc.JsonWithInt;
+import io.qdrant.client.grpc.Points;
 import io.qdrant.client.grpc.Points.PointStruct;
 import io.qdrant.client.grpc.Points.ScoredPoint;
 import io.qdrant.client.grpc.Points.SearchPoints;
 import io.qdrant.client.grpc.Points.UpdateResult;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
@@ -38,15 +43,17 @@ public class EmbeddingService {
   private static final String COLLECTION_NAME = "my_collection";
   private final OpenAIAsyncClient openAIAsyncClient;
   private final QdrantClient qdrantClient;
+  private final Kernel semanticKernel;
 
   @Value("${openai-embedding-deployment-name}")
   private String embeddingDeploymentName;
 
   @Autowired
   public EmbeddingService(OpenAIAsyncClient openAIAsyncClient,
-      QdrantClient qdrantClient) {
+      QdrantClient qdrantClient, @Qualifier("embeddingKernel") Kernel semanticKernel) {
     this.openAIAsyncClient = openAIAsyncClient;
     this.qdrantClient = qdrantClient;
+    this.semanticKernel = semanticKernel;
   }
 
   public List<EmbeddingItem> buildEmbedding(String text) {
@@ -71,48 +78,64 @@ public class EmbeddingService {
     }
   }
 
-  public String buildAndStoreEmbedding(String text)
+  public String buildAndStoreEmbedding(String text, Map<String, JsonWithInt.Value> payload)
       throws ExecutionException, InterruptedException {
 
     List<EmbeddingItem> embeddings = buildEmbedding(text);
-    return saveEmbedding(embeddings);
+    return saveEmbedding(embeddings, payload);
   }
 
-  private static List<PointStruct> getPointStructs(List<EmbeddingItem> embeddings) {
-    return embeddings.stream().map(embeddingItem -> {
-      UUID id = UUID.randomUUID();
-      return PointStruct.newBuilder()
-          .setId(id(id))
-          .setVectors(vectors(embeddingItem.getEmbedding()))
-          .build();
-    }).collect(Collectors.toList());
-  }
+  public List<ScoredPointDto> searchEmbedding(String text) {
+    List<ScoredPoint> closestEmbeddings = null;
+    try {
+      if (!qdrantClient.collectionExistsAsync(COLLECTION_NAME).get()) {
+        log.info("Collection doesn't exists: {}", COLLECTION_NAME);
+        return java.util.Collections.emptyList();
+      }
+      var embeddings = retrieveEmbeddings(text);
+      var qe = new ArrayList<Float>();
+      embeddings.block().getData().forEach(embeddingItem ->
+          qe.addAll(embeddingItem.getEmbedding())
+      );
 
-  public List<ScoredPointDto> searchEmbedding(String text)
-      throws ExecutionException, InterruptedException {
-    if (!qdrantClient.collectionExistsAsync(COLLECTION_NAME).get()) {
-      log.info("Collection doesn't exists: {}", COLLECTION_NAME);
-      return java.util.Collections.emptyList();
+      closestEmbeddings = qdrantClient
+          .searchAsync(
+              SearchPoints.newBuilder()
+                  .setCollectionName(COLLECTION_NAME)
+                  .addAllVector(qe)
+                  .setWithPayload(enable(true))
+                  .setLimit(3)
+                  .build())
+          .get();
+    } catch (ExecutionException | InterruptedException e) {
+      throw new RuntimeException(e);
     }
-    var embeddings = retrieveEmbeddings(text);
-
-    var qe = new ArrayList<Float>();
-    embeddings.block().getData().forEach(embeddingItem ->
-        qe.addAll(embeddingItem.getEmbedding())
-    );
-    List<ScoredPoint> closestEmbeddings = qdrantClient
-        .searchAsync(
-            SearchPoints.newBuilder()
-                .setCollectionName(COLLECTION_NAME)
-                .addAllVector(qe)
-                .setWithPayload(enable(true))
-                .setLimit(3)
-                .build())
-        .get();
-
-//    closestEmbeddings.stream().forEach(embedding -> System.out.println(embedding));
 
     return getSearchResultFromScoredPoint(closestEmbeddings);
+  }
+
+  public List<ScoredPointDto> search(String prompt) {
+    List<EmbeddingItem> embeddings = buildEmbedding(prompt);
+    List<Points.ScoredPoint> response = null;
+    try {
+      response = qdrantClient.searchAsync(Points.SearchPoints.newBuilder()
+          .setCollectionName(COLLECTION_NAME)
+          .addAllVector(embeddings.getFirst().getEmbedding())
+          .setLimit(10)
+          .setWithPayload(enable(true))
+          .build()).get();
+      log.info("completed fetching search result.......");
+    } catch (ExecutionException | InterruptedException e) {
+      throw new RuntimeException(e);
+    }
+
+    return response.stream().map(scoredPoint -> ScoredPointDto.builder()
+        .uuid(scoredPoint.getId().getUuid())
+        .payload(scoredPoint.getPayloadMap().entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
+        .score(scoredPoint.getScore())
+        .build()).toList();
   }
 
   public static List<ScoredPointDto> getSearchResultFromScoredPoint(
@@ -123,16 +146,25 @@ public class EmbeddingService {
           scoredPointDto.setUuid(scoredPoint.getId().getUuid());
           scoredPointDto.setScore(scoredPoint.getScore());
           scoredPointDto.setEmbeddingPoints(scoredPoint.getVectors().getVector().getDataList());
+          scoredPointDto.setPayload(scoredPoint.getPayloadMap().entrySet()
+              .stream()
+              .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
           return scoredPointDto;
         })
         .collect(Collectors.toList());
   }
 
-  private String saveEmbedding(List<EmbeddingItem> embeddings)
+  private String saveEmbedding(List<EmbeddingItem> embeddings,
+      Map<String, JsonWithInt.Value> payload)
       throws InterruptedException, ExecutionException {
 
     createCollectionIfNotExists();
-    List<PointStruct> pointStructs = getPointStructs(embeddings);
+    List<PointStruct> pointStructs;
+    if (payload != null) {
+      pointStructs = getPointStructsWithPayload(embeddings, payload);
+    } else {
+      pointStructs = getPointStructs(embeddings);
+    }
 
     UpdateResult updateResult;
     try {
@@ -144,7 +176,6 @@ public class EmbeddingService {
     }
     return updateResult.getStatus().name();
   }
-
 
   private void createCollectionIfNotExists() throws ExecutionException, InterruptedException {
     if (qdrantClient.collectionExistsAsync(COLLECTION_NAME).get()) {
@@ -160,6 +191,28 @@ public class EmbeddingService {
                 .build())
         .get();
     log.info("Collection was created: [{}]", result.getResult());
+  }
+
+  private static List<PointStruct> getPointStructs(List<EmbeddingItem> embeddings) {
+    return embeddings.stream().map(embedding -> {
+      UUID id = UUID.randomUUID();
+      return PointStruct.newBuilder()
+          .setId(id(id))
+          .setVectors(vectors(embedding.getEmbedding()))
+          .build();
+    }).collect(Collectors.toList());
+  }
+
+  private static List<PointStruct> getPointStructsWithPayload(List<EmbeddingItem> embeddings,
+      Map<String, JsonWithInt.Value> payload) {
+    return embeddings.stream().map(embedding -> {
+      UUID id = UUID.randomUUID();
+      return PointStruct.newBuilder()
+          .setId(id(id))
+          .setVectors(vectors(embedding.getEmbedding()))
+          .putAllPayload(payload)
+          .build();
+    }).collect(Collectors.toList());
   }
 
   private Mono<Embeddings> retrieveEmbeddings(String text) {

@@ -4,7 +4,8 @@ import com.azure.ai.openai.models.EmbeddingItem;
 import com.epam.training.gen.ai.dto.EmbeddingRequest;
 import com.epam.training.gen.ai.dto.EmbeddingResponse;
 import com.epam.training.gen.ai.dto.ScoredPointDto;
-import com.epam.training.gen.ai.vector.EmbeddingService;
+import com.epam.training.gen.ai.service.EmbeddingService;
+import java.util.Collections;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,9 +42,9 @@ public class EmbeddingController {
       @RequestBody EmbeddingRequest request) {
     try {
       validateInputText(request.getText());
-      System.out.println("Text: " + request.getText());
+      System.out.println("Text: {}" + request.getText());
 
-      String status = embeddingService.buildAndStoreEmbedding(request.getText());
+      String status = embeddingService.buildAndStoreEmbedding(request.getText(), null);
       return ResponseEntity.ok(status);
     } catch (Exception e) {
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -52,7 +53,7 @@ public class EmbeddingController {
   }
 
   @PostMapping(path = "/search")
-  public ResponseEntity<?> searchClosestEmbedding(
+  public ResponseEntity<List<ScoredPointDto>> searchClosestEmbedding(
       @RequestBody EmbeddingRequest request) {
     try {
       validateInputText(request.getText());
@@ -62,8 +63,7 @@ public class EmbeddingController {
       return ResponseEntity.ok(closestEmbeddings);
     } catch (Exception e) {
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-          .body("An error occurred: " + e.getMessage());
-
+          .body(Collections.emptyList());
     }
   }
 
