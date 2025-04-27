@@ -9,5 +9,11 @@ client:
   azureopenai:
     key: ${DIAL_API_KEY}
     endpoint: ${DIAL_API_ENDPOINT}
-#    deployment-name: gpt-4o
+    #    deployment-name: gpt-4o
     deployment-name: ${DIAL_API_DEPLOYMENT_NAME}
+
+openai-embedding-deployment-name: text-embedding-ada-002
+
+qdrant:
+  host: ${QDRANT_HOST}
+  port: ${QDRANT_PORT}
