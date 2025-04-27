@@ -64,11 +64,17 @@ public class EmbeddingController {
   @PostMapping(path = "/search")
   public ResponseEntity<?> searchClosestEmbedding(
       @RequestBody EmbeddingRequest request) {
-    validateInputText(request.getText());
-    System.out.println("Text: " + request.getText());
+    try {
+      validateInputText(request.getText());
+      System.out.println("Text: " + request.getText());
 
-    List<ScoredPointDto> closestEmbeddings = embeddingService.searchEmbedding(request.getText());
-    return ResponseEntity.ok(closestEmbeddings);
+      List<ScoredPointDto> closestEmbeddings = embeddingService.searchEmbedding(request.getText());
+      return ResponseEntity.ok(closestEmbeddings);
+    } catch (Exception e) {
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body("An error occurred: " + e.getMessage());
+
+    }
   }
 
   private void validateInputText(String text) {

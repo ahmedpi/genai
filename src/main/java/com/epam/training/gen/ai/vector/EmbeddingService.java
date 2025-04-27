@@ -256,6 +256,7 @@ public class EmbeddingService {
     return updateResult.getStatus().name();
   }
 
+
   private void createCollectionIfNotExists() throws ExecutionException, InterruptedException {
     if (qdrantClient.collectionExistsAsync(COLLECTION_NAME).get()) {
       log.info("Collection already exists: {}", COLLECTION_NAME);
