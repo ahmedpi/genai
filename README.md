@@ -63,3 +63,8 @@ Build and Store Embedding from Text (**embeddings/build-and-store**)
 Search for Closest Embeddings (**/embeddings/search**)
 ![img_10.png](img_10.png)
 
+## Task 6 - RAG (Retrieval Augmented Generation) 
+**Text Generation Based on Knowledge Sources**
+1. Ensure the Qdrant container is running and publicly accessible
+2. Uploaded knowledge source (text or PDF) - **rag/source/upload/file** **rag/source/upload/url**
+3. Generate text based on the knowledge sources -  **rag/prompt**

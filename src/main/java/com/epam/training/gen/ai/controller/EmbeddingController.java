@@ -7,13 +7,11 @@ import com.epam.training.gen.ai.dto.ScoredPointDto;
 import com.epam.training.gen.ai.service.EmbeddingService;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -52,13 +50,6 @@ public class EmbeddingController {
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body("An error occurred: " + e.getMessage());
     }
-  }
-
-  @PutMapping(value = "/build-and-store-with-payload")
-  public ResponseEntity<String> buildAndStoreEmbedding(
-      @RequestBody List<Map<String, Object>> input) {
-    embeddingService.buildAndStoreEmbeddingWithPayload(input);
-    return ResponseEntity.ok("Successfully saved vectors");
   }
 
   @PostMapping(path = "/search")

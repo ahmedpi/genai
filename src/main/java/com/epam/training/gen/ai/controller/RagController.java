@@ -24,14 +24,27 @@ public class RagController {
   private final EmbeddingService embeddingService;
   private final RagService ragService;
 
-  @PostMapping("/source/upload")
+  @PostMapping("/source/upload/file")
   public ResponseEntity<?> uploadKnowledgeSourceFromFile(@RequestParam("file") MultipartFile file) {
-    log.info("Received a request to upload a knowledge source.");
+    //txt, pdf
     try {
       ragService.storeKnowledgeSource(file);
+      return ResponseEntity.ok("Knowledge uploaded from file successfully.");
+    } catch (IllegalArgumentException e) {
+      log.error("File validation error: {}", e.getMessage());
+      return ResponseEntity.badRequest().body("File validation error: " + e.getMessage());
+    } catch (Exception e) {
+      log.error("An error occurred while uploading the knowledge source: {}", e.getMessage(), e);
+      return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+          .body("An internal error occurred: " + e.getMessage());
+    }
+  }
 
-      log.info("Knowledge source uploaded and processed successfully.");
-      return ResponseEntity.ok("Knowledge uploaded successfully.");
+  @PostMapping("/source/upload/url")
+  public ResponseEntity<?> uploadKnowledgeSourceFromUrl(@RequestParam("url") String url) {
+    try {
+      ragService.storeKnowledgeSource(url);
+      return ResponseEntity.ok("Knowledge uploaded from URL successfully.");
     } catch (IllegalArgumentException e) {
       log.error("File validation error: {}", e.getMessage());
       return ResponseEntity.badRequest().body("File validation error: " + e.getMessage());
@@ -54,6 +67,4 @@ public class RagController {
           .body("An internal error occurred while processing the prompt.");
     }
   }
-
-
 }

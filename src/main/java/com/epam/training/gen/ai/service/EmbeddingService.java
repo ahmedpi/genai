@@ -23,7 +23,6 @@ import io.qdrant.client.grpc.Points.ScoredPoint;
 import io.qdrant.client.grpc.Points.SearchPoints;
 import io.qdrant.client.grpc.Points.UpdateResult;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -87,99 +86,6 @@ public class EmbeddingService {
 
     List<EmbeddingItem> embeddings = buildEmbedding(text);
     return saveEmbedding(embeddings, payload);
-  }
-
-  public void buildAndStoreEmbeddingWithPayload(List<Map<String, Object>> input) {
-    input.forEach(stringObjectMap -> {
-      Map<String, JsonWithInt.Value> payload = generatePayload(stringObjectMap);
-      String prompt = getGenericSummarizedString(payload);
-
-      List<EmbeddingItem> embeddings = buildEmbedding(prompt); // build(prompt);
-      List<Points.UpdateResult> response = embeddings.stream().map(embeddingItem -> {
-        UUID id = UUID.randomUUID();
-        PointStruct point = PointStruct.newBuilder()
-            .setId(id(id))
-            .setVectors(vectors(embeddingItem.getEmbedding()))
-            .putAllPayload(payload)
-            .build();
-
-        Points.UpdateResult updateResult;
-        try {
-          updateResult = qdrantClient.upsertAsync(COLLECTION_NAME, List.of(point)).get();
-          log.info("Embedding saved with id {} , status: {}", updateResult.getOperationId(),
-              updateResult.getStatus().name());
-          return updateResult;
-        } catch (Exception e) {
-          log.error("Error while storing embedding: {}", e.getMessage());
-          throw new RuntimeException("Error while storing embedding", e);
-        }
-      }).toList();
-    });
-  }
-
-  private String getGenericSummarizedString(Map<String, JsonWithInt.Value> payload) {
-    StringBuilder summary = new StringBuilder();
-    payload.keySet().stream().sorted().forEach(key -> {
-      Object value = payload.get(key);
-      String displayValue = value.toString().trim();
-      summary.append(key.toLowerCase()).append("=").append(displayValue).append(";");
-    });
-    String result = summary.toString().trim();
-    log.info("Standardized summary string: {}", result);
-    return result;
-  }
-
-  private Map<String, JsonWithInt.Value> generatePayload(Map<String, Object> input) {
-    Map<String, JsonWithInt.Value> payload = new HashMap<>();
-    input.forEach((key, value) -> {
-      payload.put(key, toValue(value));
-    });
-    return payload;
-  }
-
-  private JsonWithInt.Value toValue(Object obj) {
-    JsonWithInt.Value.Builder builder = JsonWithInt.Value.newBuilder();
-    if (obj instanceof String str) {
-      builder.setStringValue(str);
-    } else if (obj instanceof Integer i) {
-      builder.setIntegerValue(i);
-    } else if (obj instanceof Double d) {
-      builder.setDoubleValue(d);
-    } else if (obj instanceof Float f) {
-      builder.setDoubleValue(f.doubleValue());
-    } else if (obj instanceof Boolean b) {
-      builder.setBoolValue(b);
-    } else if (obj instanceof Long l) {
-      builder.setIntegerValue(l.intValue()); // or use setLongValue if available
-    } else {
-      builder.setStringValue(obj.toString()); // fallback
-    }
-    return builder.build();
-  }
-
-  private static List<PointStruct> getPointStructs(List<EmbeddingItem> embeddings,
-      Map<String, JsonWithInt.Value> payload) {
-    return embeddings.stream().map(embedding -> {
-      System.out.println("check2: " + embedding.getEmbeddingAsString());
-      UUID id = UUID.randomUUID();
-      return PointStruct.newBuilder()
-          .setId(id(id))
-          .setVectors(vectors(embedding.getEmbedding()))
-          .build();
-    }).collect(Collectors.toList());
-  }
-
-  private static List<PointStruct> getPointStructsWithPayload(List<EmbeddingItem> embeddings,
-      Map<String, JsonWithInt.Value> payload) {
-    return embeddings.stream().map(embedding -> {
-      System.out.println("check: " + embedding.getEmbeddingAsString());
-      UUID id = UUID.randomUUID();
-      return PointStruct.newBuilder()
-          .setId(id(id))
-          .setVectors(vectors(embedding.getEmbedding()))
-          .putAllPayload(payload)
-          .build();
-    }).collect(Collectors.toList());
   }
 
   public List<ScoredPointDto> searchEmbedding(String text) {
@@ -288,6 +194,29 @@ public class EmbeddingService {
                 .build())
         .get();
     log.info("Collection was created: [{}]", result.getResult());
+  }
+
+  private static List<PointStruct> getPointStructs(List<EmbeddingItem> embeddings,
+      Map<String, JsonWithInt.Value> payload) {
+    return embeddings.stream().map(embedding -> {
+      UUID id = UUID.randomUUID();
+      return PointStruct.newBuilder()
+          .setId(id(id))
+          .setVectors(vectors(embedding.getEmbedding()))
+          .build();
+    }).collect(Collectors.toList());
+  }
+
+  private static List<PointStruct> getPointStructsWithPayload(List<EmbeddingItem> embeddings,
+      Map<String, JsonWithInt.Value> payload) {
+    return embeddings.stream().map(embedding -> {
+      UUID id = UUID.randomUUID();
+      return PointStruct.newBuilder()
+          .setId(id(id))
+          .setVectors(vectors(embedding.getEmbedding()))
+          .putAllPayload(payload)
+          .build();
+    }).collect(Collectors.toList());
   }
 
   private Mono<Embeddings> retrieveEmbeddings(String text) {
