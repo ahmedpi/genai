@@ -1,112 +1,52 @@
 package com.epam.training.gen.ai.service;
 
-import static io.qdrant.client.PointIdFactory.id;
-import static io.qdrant.client.VectorsFactory.vectors;
-
-import com.azure.ai.openai.OpenAIAsyncClient;
-import com.azure.ai.openai.models.EmbeddingItem;
 import com.epam.training.gen.ai.dto.PromptRequest;
 import com.epam.training.gen.ai.dto.ScoredPointDto;
-import com.epam.training.gen.ai.vector.EmbeddingService;
-import io.qdrant.client.QdrantClient;
-import io.qdrant.client.grpc.Collections;
 import io.qdrant.client.grpc.JsonWithInt;
 import io.qdrant.client.grpc.JsonWithInt.Value;
-import io.qdrant.client.grpc.Points.PointStruct;
-import io.qdrant.client.grpc.Points.UpdateResult;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @Slf4j
 @AllArgsConstructor
 public class RagService {
 
-  public static final int VECTOR_SIZE = 1536;
-
   private final EmbeddingService embeddingService;
-  private static final String COLLECTION_NAME = "my_collection";
-  private final OpenAIAsyncClient openAIAsyncClient;
-  private final QdrantClient qdrantClient;
   private final ChatService chatService;
 
-  public void storeKnowledgeSource(String knowledge) throws ExecutionException, InterruptedException {
+  public void storeKnowledgeSource(MultipartFile file)
+      throws IOException, ExecutionException, InterruptedException {
+    String content = parseFileContent(file);
+
     Map<String, Value> payload = new HashMap<>();
-    payload.put("Context", JsonWithInt.Value.newBuilder().setStringValue(knowledge).build());
-    List<EmbeddingItem> embeddings = embeddingService.buildEmbedding(knowledge);
+    payload.put("Context", JsonWithInt.Value.newBuilder().setStringValue(content).build());
 
-    try {
-      saveEmbedding(embeddings, payload);
-      log.info("Vector saved");
-    } catch (ExecutionException | InterruptedException e) {
-      throw new RuntimeException(e);
-    }
-  }
+    String status = embeddingService.buildAndStoreEmbedding(content, payload);
 
-  private String saveEmbedding(List<EmbeddingItem> embeddings, Map<String, Value> payload)
-      throws InterruptedException, ExecutionException {
-
-    createCollectionIfNotExists();
-    List<PointStruct> pointStructs = getPointStructs(embeddings, payload);
-
-    UpdateResult updateResult;
-    try {
-      updateResult = qdrantClient.upsertAsync(COLLECTION_NAME, pointStructs).get();
-      log.info("saveEmbedding status: {}", updateResult.getStatus().name());
-    } catch (Exception e) {
-      log.error("Error while storing embedding: {}", e.getMessage());
-      throw new RuntimeException("Error while storing embedding", e);
-    }
-    return updateResult.getStatus().name();
-  }
-
-  private static List<PointStruct> getPointStructs(List<EmbeddingItem> embeddings,
-      Map<String, Value> payload) {
-    return embeddings.stream().map(embedding -> {
-      UUID id = UUID.randomUUID();
-      return PointStruct.newBuilder()
-          .setId(id(id))
-          .setVectors(vectors(embedding.getEmbedding()))
-          .putAllPayload(payload)
-          .build();
-    }).collect(Collectors.toList());
-  }
-
-  private void createCollectionIfNotExists() throws ExecutionException, InterruptedException {
-    if (qdrantClient.collectionExistsAsync(COLLECTION_NAME).get()) {
-      log.info("Collection already exists: {}", COLLECTION_NAME);
-      return;
-    }
-    log.info("Creating collection: {}", COLLECTION_NAME);
-    Collections.CollectionOperationResponse result = qdrantClient.createCollectionAsync(
-            COLLECTION_NAME,
-            Collections.VectorParams.newBuilder()
-                .setDistance(Collections.Distance.Cosine)
-                .setSize(VECTOR_SIZE)
-                .build())
-        .get();
-    log.info("Collection was created: [{}]", result.getResult());
+    log.info("Vector saved. status: {} ", status);
   }
 
   public String getPromptResponse(PromptRequest promptRequest) {
-    List<ScoredPointDto> context = embeddingService.search(
+    List<ScoredPointDto> closestEmbeddings = embeddingService.search(
         promptRequest.prompt());
     StringBuilder contextBuilder = new StringBuilder();
-    context.forEach(res -> {
-      Object data = res.getPayload().get("Context");
-      if (data != null) {
-        contextBuilder.append(data.toString()).append("\n");
+    closestEmbeddings.forEach(res -> {
+      Object context = res.getPayload().get("Context");
+      if (context != null) {
+        contextBuilder.append(context).append("\n");
       }
     });
 
-    log.info("context: " + contextBuilder.toString());
+    log.info("context: {} ", contextBuilder);
 
     String promptWithContext = String.format(
         "Use the following context to answer the question.%n%n"
@@ -117,5 +57,23 @@ public class RagService {
     );
 
     return chatService.getChatCompletions(promptWithContext);
+  }
+
+  private String parseFileContent(MultipartFile file) throws IOException {
+    if (file == null || file.isEmpty() || file.getOriginalFilename() == null) {
+      throw new IllegalArgumentException("File is empty or does not have a valid name.");
+    }
+    String filename = file.getOriginalFilename();
+
+    if (!filename.endsWith(".txt")) {
+      throw new IllegalArgumentException("Unsupported file type: " + filename);
+    }
+
+    try {
+      return new String(file.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+    } catch (IOException e) {
+      log.error("Error reading file: {}", filename, e);
+      throw new IOException("Failed to read file content.", e);
+    }
   }
 }

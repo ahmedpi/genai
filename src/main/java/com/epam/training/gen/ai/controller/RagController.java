@@ -1,10 +1,8 @@
 package com.epam.training.gen.ai.controller;
 
 import com.epam.training.gen.ai.dto.PromptRequest;
+import com.epam.training.gen.ai.service.EmbeddingService;
 import com.epam.training.gen.ai.service.RagService;
-import com.epam.training.gen.ai.vector.EmbeddingService;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -30,9 +28,7 @@ public class RagController {
   public ResponseEntity<?> uploadKnowledgeSourceFromFile(@RequestParam("file") MultipartFile file) {
     log.info("Received a request to upload a knowledge source.");
     try {
-      String content = parseFileContent(file);
-
-      ragService.storeKnowledgeSource(content);
+      ragService.storeKnowledgeSource(file);
 
       log.info("Knowledge source uploaded and processed successfully.");
       return ResponseEntity.ok("Knowledge uploaded successfully.");
@@ -59,21 +55,5 @@ public class RagController {
     }
   }
 
-  private String parseFileContent(MultipartFile file) throws IOException {
-    if (file == null || file.isEmpty() || file.getOriginalFilename() == null) {
-      throw new IllegalArgumentException("File is empty or does not have a valid name.");
-    }
-    String filename = file.getOriginalFilename();
 
-    if (!filename.endsWith(".txt")) {
-      throw new IllegalArgumentException("Unsupported file type: " + filename);
-    }
-
-    try {
-      return new String(file.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-    } catch (IOException e) {
-      log.error("Error reading file: {}", filename, e);
-      throw new IOException("Failed to read file content.", e);
-    }
-  }
 }

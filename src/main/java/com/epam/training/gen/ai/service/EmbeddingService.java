@@ -1,4 +1,4 @@
-package com.epam.training.gen.ai.vector;
+package com.epam.training.gen.ai.service;
 
 
 import static io.qdrant.client.PointIdFactory.id;
@@ -82,23 +82,24 @@ public class EmbeddingService {
     }
   }
 
-  public String buildAndStoreEmbedding(String text)
+  public String buildAndStoreEmbedding(String text, Map<String, JsonWithInt.Value> payload)
       throws ExecutionException, InterruptedException {
 
     List<EmbeddingItem> embeddings = buildEmbedding(text);
-    return saveEmbedding(embeddings);
+    return saveEmbedding(embeddings, payload);
   }
 
-  public void store(List<Map<String, Object>> input) {
+  public void buildAndStoreEmbeddingWithPayload(List<Map<String, Object>> input) {
     input.forEach(stringObjectMap -> {
       Map<String, JsonWithInt.Value> payload = generatePayload(stringObjectMap);
       String prompt = getGenericSummarizedString(payload);
-      List<Embedding> embeddings = build(prompt);
-      List<Points.UpdateResult> response = embeddings.stream().map(embedding -> {
+
+      List<EmbeddingItem> embeddings = buildEmbedding(prompt); // build(prompt);
+      List<Points.UpdateResult> response = embeddings.stream().map(embeddingItem -> {
         UUID id = UUID.randomUUID();
         PointStruct point = PointStruct.newBuilder()
             .setId(id(id))
-            .setVectors(vectors(embedding.getVector()))
+            .setVectors(vectors(embeddingItem.getEmbedding()))
             .putAllPayload(payload)
             .build();
 
@@ -118,11 +119,9 @@ public class EmbeddingService {
 
   private String getGenericSummarizedString(Map<String, JsonWithInt.Value> payload) {
     StringBuilder summary = new StringBuilder();
-    // Sort keys to ensure consistent order
     payload.keySet().stream().sorted().forEach(key -> {
       Object value = payload.get(key);
       String displayValue = value.toString().trim();
-      // Use "key=value" format for clarity and consistency
       summary.append(key.toLowerCase()).append("=").append(displayValue).append(";");
     });
     String result = summary.toString().trim();
@@ -158,12 +157,27 @@ public class EmbeddingService {
     return builder.build();
   }
 
-  private static List<PointStruct> getPointStructs(List<EmbeddingItem> embeddings) {
+  private static List<PointStruct> getPointStructs(List<EmbeddingItem> embeddings,
+      Map<String, JsonWithInt.Value> payload) {
     return embeddings.stream().map(embedding -> {
+      System.out.println("check2: " + embedding.getEmbeddingAsString());
       UUID id = UUID.randomUUID();
       return PointStruct.newBuilder()
           .setId(id(id))
           .setVectors(vectors(embedding.getEmbedding()))
+          .build();
+    }).collect(Collectors.toList());
+  }
+
+  private static List<PointStruct> getPointStructsWithPayload(List<EmbeddingItem> embeddings,
+      Map<String, JsonWithInt.Value> payload) {
+    return embeddings.stream().map(embedding -> {
+      System.out.println("check: " + embedding.getEmbeddingAsString());
+      UUID id = UUID.randomUUID();
+      return PointStruct.newBuilder()
+          .setId(id(id))
+          .setVectors(vectors(embedding.getEmbedding()))
+          .putAllPayload(payload)
           .build();
     }).collect(Collectors.toList());
   }
@@ -193,8 +207,6 @@ public class EmbeddingService {
     } catch (ExecutionException | InterruptedException e) {
       throw new RuntimeException(e);
     }
-
-//    closestEmbeddings.stream().forEach(embedding -> System.out.println(embedding));
 
     return getSearchResultFromScoredPoint(closestEmbeddings);
   }
@@ -239,11 +251,17 @@ public class EmbeddingService {
         .collect(Collectors.toList());
   }
 
-  private String saveEmbedding(List<EmbeddingItem> embeddings)
+  private String saveEmbedding(List<EmbeddingItem> embeddings,
+      Map<String, JsonWithInt.Value> payload)
       throws InterruptedException, ExecutionException {
 
     createCollectionIfNotExists();
-    List<PointStruct> pointStructs = getPointStructs(embeddings);
+    List<PointStruct> pointStructs;
+    if (payload != null) {
+      pointStructs = getPointStructsWithPayload(embeddings, payload);
+    } else {
+      pointStructs = getPointStructs(embeddings, null);
+    }
 
     UpdateResult updateResult;
     try {
@@ -255,7 +273,6 @@ public class EmbeddingService {
     }
     return updateResult.getStatus().name();
   }
-
 
   private void createCollectionIfNotExists() throws ExecutionException, InterruptedException {
     if (qdrantClient.collectionExistsAsync(COLLECTION_NAME).get()) {
